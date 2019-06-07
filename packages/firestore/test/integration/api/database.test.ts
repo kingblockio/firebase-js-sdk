@@ -63,7 +63,8 @@ apiDescribe('Database', persistence => {
     });
   });
 
-  it('can delete a document', () => {
+  it.only('can delete a document', () => {
+    firebase.firestore!.setLogLevel('debug');
     return withTestDoc(persistence, docRef => {
       return docRef
         .set({ foo: 'bar' })
