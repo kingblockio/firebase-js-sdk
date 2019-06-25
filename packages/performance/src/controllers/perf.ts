@@ -1,4 +1,5 @@
 /**
+ * @license
  * Copyright 2019 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,12 +18,20 @@ import { Trace } from '../resources/trace';
 import { setupOobResources } from '../services/oob_resources_service';
 import { SettingsService } from '../services/settings_service';
 import { getInitializationPromise } from '../services/initialization_service';
+import { Api } from '../services/api_service';
 import { FirebaseApp } from '@firebase/app-types';
 import { FirebasePerformance } from '@firebase/performance-types';
+import { consoleLogger } from '../utils/console_logger';
 
 export class PerformanceController implements FirebasePerformance {
   constructor(readonly app: FirebaseApp) {
-    getInitializationPromise().then(setupOobResources, setupOobResources);
+    if (Api.getInstance().requiredApisAvailable()) {
+      getInitializationPromise().then(setupOobResources, setupOobResources);
+    } else {
+      consoleLogger.info(
+        'Firebase Performance cannot start if browser does not support fetch and Promise or cookie is disabled.'
+      );
+    }
   }
 
   trace(name: string): Trace {
@@ -32,14 +41,14 @@ export class PerformanceController implements FirebasePerformance {
   set instrumentationEnabled(val: boolean) {
     SettingsService.getInstance().instrumentationEnabled = val;
   }
-  get instrumentationEnabled() {
+  get instrumentationEnabled(): boolean {
     return SettingsService.getInstance().instrumentationEnabled;
   }
 
   set dataCollectionEnabled(val: boolean) {
     SettingsService.getInstance().dataCollectionEnabled = val;
   }
-  get dataCollectionEnabled() {
+  get dataCollectionEnabled(): boolean {
     return SettingsService.getInstance().dataCollectionEnabled;
   }
 }

@@ -15,41 +15,46 @@
  * limitations under the License.
  */
 import * as type from './type';
+import { FirebaseStorageError } from './error';
 
-type NextFn<T> = (value: T) => void;
-type ErrorFn = (error: Error) => void;
-type CompleteFn = () => void;
-type Unsubscribe = () => void;
+export type NextFn<T> = (value: T) => void;
+export type ErrorFn = (error: Error | FirebaseStorageError) => void;
+export type CompleteFn = () => void;
+export type Unsubscribe = () => void;
 
-type Subscribe<T> = (
-  next: NextFn<T> | { [name: string]: string | null },
-  error?: ErrorFn,
-  complete?: CompleteFn
+export interface StorageObserver<T> {
+  next?: NextFn<T> | null;
+  error?: ErrorFn | null;
+  complete?: CompleteFn | null;
+}
+
+export type Subscribe<T> = (
+  next?: NextFn<T> | StorageObserver<T> | null,
+  error?: ErrorFn | null,
+  complete?: CompleteFn | null
 ) => Unsubscribe;
-
-export { NextFn, ErrorFn, CompleteFn, Unsubscribe, Subscribe };
 
 /**
  * @struct
  */
-export class Observer<T> {
-  next: NextFn<T> | null;
-  error: ErrorFn | null;
-  complete: CompleteFn | null;
+export class Observer<T> implements StorageObserver<T> {
+  next?: NextFn<T> | null;
+  error?: ErrorFn | null;
+  complete?: CompleteFn | null;
 
   constructor(
-    nextOrObserver: NextFn<T> | { [name: string]: string | null } | null,
-    opt_error?: ErrorFn | null,
-    opt_complete?: CompleteFn | null
+    nextOrObserver?: NextFn<T> | StorageObserver<T> | null,
+    error?: ErrorFn | null,
+    complete?: CompleteFn | null
   ) {
-    let asFunctions =
+    const asFunctions =
       type.isFunction(nextOrObserver) ||
-      type.isDef(opt_error) ||
-      type.isDef(opt_complete);
+      type.isDef(error) ||
+      type.isDef(complete);
     if (asFunctions) {
       this.next = nextOrObserver as NextFn<T> | null;
-      this.error = opt_error || null;
-      this.complete = opt_complete || null;
+      this.error = error || null;
+      this.complete = complete || null;
     } else {
       const observer = nextOrObserver as {
         next?: NextFn<T> | null;

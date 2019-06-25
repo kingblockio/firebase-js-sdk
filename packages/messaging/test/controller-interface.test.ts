@@ -62,20 +62,20 @@ describe('Firebase Messaging > *BaseController', () => {
   });
 
   describe('INTERNAL.delete()', () => {
-    it('should call delete()', () => {
+    it('should call delete()', async () => {
       const controller = new MockBaseController(app);
       const spy = sandbox.spy(controller, 'delete');
-      controller.INTERNAL.delete();
+      await controller.INTERNAL.delete();
       expect(spy.callCount).to.equal(1);
     });
   });
 
   describe('requestPermission()', () => {
-    it(`should throw`, () => {
+    it(`should throw`, async () => {
       const controller = new MockBaseController(app);
       let thrownError;
       try {
-        controller.requestPermission();
+        await controller.requestPermission();
       } catch (err) {
         thrownError = err;
       }

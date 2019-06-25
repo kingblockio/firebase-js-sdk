@@ -24,14 +24,15 @@ import {
 import { PerformanceController } from './src/controllers/perf';
 import { setupApi } from './src/services/api_service';
 import { SettingsService } from './src/services/settings_service';
-import { consoleLogger } from './src/utils/console_logger';
 import { ERROR_FACTORY, ErrorCode } from './src/utils/errors';
 import { FirebasePerformance } from '@firebase/performance-types';
 
 const DEFAULT_ENTRY_NAME = '[DEFAULT]';
 
 export function registerPerformance(instance: FirebaseNamespace): void {
-  const factoryMethod: FirebaseServiceFactory = (app: FirebaseApp) => {
+  const factoryMethod: FirebaseServiceFactory = (
+    app: FirebaseApp
+  ): PerformanceController => {
     if (app.name !== DEFAULT_ENTRY_NAME) {
       throw ERROR_FACTORY.create(ErrorCode.FB_NOT_DEFAULT);
     }
@@ -48,14 +49,8 @@ export function registerPerformance(instance: FirebaseNamespace): void {
   );
 }
 
-if (window && fetch && Promise) {
-  setupApi(window);
-  registerPerformance(firebase);
-} else {
-  consoleLogger.info(
-    'Firebase Performance cannot start if browser does not support fetch and Promise.'
-  );
-}
+setupApi(window);
+registerPerformance(firebase);
 
 declare module '@firebase/app-types' {
   interface FirebaseNamespace {

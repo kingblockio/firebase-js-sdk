@@ -30,11 +30,11 @@ import {
 import {
   Bound,
   Direction,
+  FieldFilter,
   Filter,
+  Operator,
   OrderBy,
-  Query as InternalQuery,
-  RelationFilter,
-  RelationOp
+  Query as InternalQuery
 } from '../core/query';
 import { Transaction as InternalTransaction } from '../core/transaction';
 import { ChangeType, ViewSnapshot } from '../core/view_snapshot';
@@ -424,7 +424,7 @@ export class Firestore implements firestore.FirebaseFirestore, FirebaseService {
     );
   }
 
-  _clearPersistence(): Promise<void> {
+  clearPersistence(): Promise<void> {
     const persistenceKey = IndexedDbPersistence.buildStoragePrefix(
       this.makeDatabaseInfo()
     );
@@ -437,7 +437,7 @@ export class Firestore implements firestore.FirebaseFirestore, FirebaseService {
         ) {
           throw new FirestoreError(
             Code.FAILED_PRECONDITION,
-            'Persistence cannot be cleared while this firestore instance is running.'
+            'Persistence cannot be cleared after this Firestore instance is initialized.'
           );
         }
         await IndexedDbPersistence.clearPersistence(persistenceKey);
@@ -1417,18 +1417,30 @@ export class Query implements firestore.Query {
   ): firestore.Query {
     validateExactNumberOfArgs('Query.where', arguments, 3);
     validateDefined('Query.where', 3, value);
-    // Enumerated from the WhereFilterOp type in index.d.ts.
-    const whereFilterOpEnums = ['<', '<=', '==', '>=', '>', 'array-contains'];
-    validateStringEnum('Query.where', whereFilterOpEnums, 2, opStr);
+
+    // TODO(in-queries): Add 'in' and 'array-contains-any' to validation.
+    if (
+      (opStr as unknown) !== 'in' &&
+      (opStr as unknown) !== 'array-contains-any'
+    ) {
+      // Enumerated from the WhereFilterOp type in index.d.ts.
+      const whereFilterOpEnums = ['<', '<=', '==', '>=', '>', 'array-contains'];
+      validateStringEnum('Query.where', whereFilterOpEnums, 2, opStr);
+    }
+
     let fieldValue;
     const fieldPath = fieldPathFromArgument('Query.where', field);
-    const relationOp = RelationOp.fromString(opStr);
+    const operator = Operator.fromString(opStr);
     if (fieldPath.isKeyField()) {
-      if (relationOp === RelationOp.ARRAY_CONTAINS) {
+      if (
+        operator === Operator.ARRAY_CONTAINS ||
+        operator === Operator.ARRAY_CONTAINS_ANY ||
+        operator === Operator.IN
+      ) {
         throw new FirestoreError(
           Code.INVALID_ARGUMENT,
-          "Invalid Query. You can't perform array-contains queries on " +
-            'FieldPath.documentId() since document IDs are not arrays.'
+          `Invalid Query. You can't perform '${operator.toString()}' ` +
+            'queries on FieldPath.documentId().'
         );
       }
       if (typeof value === 'string') {
@@ -1479,12 +1491,31 @@ export class Query implements firestore.Query {
         );
       }
     } else {
+      if (
+        operator === Operator.IN ||
+        operator === Operator.ARRAY_CONTAINS_ANY
+      ) {
+        if (!Array.isArray(value) || value.length === 0) {
+          throw new FirestoreError(
+            Code.INVALID_ARGUMENT,
+            'Invalid Query. A non-empty array is required for ' +
+              `'${operator.toString()}' filters.`
+          );
+        }
+        if (value.length > 10) {
+          throw new FirestoreError(
+            Code.INVALID_ARGUMENT,
+            `Invalid Query. '${operator.toString()}' filters support a ` +
+              'maximum of 10 elements in the value array.'
+          );
+        }
+      }
       fieldValue = this.firestore._dataConverter.parseQueryValue(
         'Query.where',
         value
       );
     }
-    const filter = Filter.create(fieldPath, relationOp, fieldValue);
+    const filter = Filter.create(fieldPath, operator, fieldValue);
     this.validateNewFilter(filter);
     return new Query(this._query.addFilter(filter), this.firestore);
   }
@@ -1916,7 +1947,12 @@ export class Query implements firestore.Query {
   }
 
   private validateNewFilter(filter: Filter): void {
-    if (filter instanceof RelationFilter) {
+    if (filter instanceof FieldFilter) {
+      const arrayOps = [Operator.ARRAY_CONTAINS, Operator.ARRAY_CONTAINS_ANY];
+      const disjunctiveOps = [Operator.IN, Operator.ARRAY_CONTAINS_ANY];
+      const isArrayOp = arrayOps.indexOf(filter.op) >= 0;
+      const isDisjunctiveOp = disjunctiveOps.indexOf(filter.op) >= 0;
+
       if (filter.isInequality()) {
         const existingField = this._query.getInequalityFilterField();
         if (existingField !== null && !existingField.isEqual(filter.field)) {
@@ -1936,13 +1972,31 @@ export class Query implements firestore.Query {
             firstOrderByField
           );
         }
-      } else if (filter.op === RelationOp.ARRAY_CONTAINS) {
-        if (this._query.hasArrayContainsFilter()) {
-          throw new FirestoreError(
-            Code.INVALID_ARGUMENT,
-            'Invalid query. Queries only support a single array-contains ' +
-              'filter.'
-          );
+      } else if (isDisjunctiveOp || isArrayOp) {
+        // You can have at most 1 disjunctive filter and 1 array filter. Check if
+        // the new filter conflicts with an existing one.
+        let conflictingOp: Operator | null = null;
+        if (isDisjunctiveOp) {
+          conflictingOp = this._query.findFilterOperator(disjunctiveOps);
+        }
+        if (conflictingOp === null && isArrayOp) {
+          conflictingOp = this._query.findFilterOperator(arrayOps);
+        }
+        if (conflictingOp != null) {
+          // We special case when it's a duplicate op to give a slightly clearer error message.
+          if (conflictingOp === filter.op) {
+            throw new FirestoreError(
+              Code.INVALID_ARGUMENT,
+              'Invalid query. You cannot use more than one ' +
+                `'${filter.op.toString()}' filter.`
+            );
+          } else {
+            throw new FirestoreError(
+              Code.INVALID_ARGUMENT,
+              `Invalid query. You cannot use '${filter.op.toString()}' filters ` +
+                `with '${conflictingOp.toString()}' filters.`
+            );
+          }
         }
       }
     }

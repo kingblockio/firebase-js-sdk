@@ -20,6 +20,7 @@ import { XhrIoPool } from '../src/implementation/xhriopool';
 import { Service } from '../src/service';
 import * as testShared from './testshared';
 import { DEFAULT_HOST } from '../src/implementation/constants';
+import { FirebaseStorageError } from '../src/implementation/error';
 
 const fakeAppGs = testShared.makeFakeApp(null, 'gs://mybucket');
 const fakeAppGsEndingSlash = testShared.makeFakeApp(null, 'gs://mybucket/');
@@ -124,7 +125,7 @@ describe('Firebase Storage > Service', () => {
       assert.equal(service.ref().toString(), 'gs://mybucket/');
     });
     it('Throws when config bucket is gs:// with an object path', () => {
-      const error = testShared.assertThrows(() => {
+      testShared.assertThrows(() => {
         new Service(fakeAppInvalidGs, xhrIoPool);
       }, 'storage/invalid-default-bucket');
     });
@@ -275,21 +276,23 @@ describe('Firebase Storage > Service', () => {
     it('In-flight requests are canceled when the service is deleted', () => {
       const ref = service.refFromURL('gs://mybucket/image.jpg');
       const toReturn = ref.getMetadata().then(
-        met => {
+        () => {
           assert.fail('Promise succeeded, should have been canceled');
         },
         err => {
           assert.equal(err.code, 'storage/app-deleted');
         }
       );
+      // tslint:disable-next-line:no-floating-promises
       service.INTERNAL.delete();
       return toReturn;
     });
     it('Requests fail when started after the service is deleted', () => {
       const ref = service.refFromURL('gs://mybucket/image.jpg');
+      // tslint:disable-next-line:no-floating-promises
       service.INTERNAL.delete();
       const toReturn = ref.getMetadata().then(
-        met => {
+        () => {
           assert.fail('Promise succeeded, should have been canceled');
         },
         err => {
@@ -300,11 +303,11 @@ describe('Firebase Storage > Service', () => {
     });
     it('Running uploads fail when the service is deleted', () => {
       const ref = service.refFromURL('gs://mybucket/image.jpg');
-      const toReturn = new Promise(function(resolve, reject) {
+      const toReturn = new Promise((resolve, reject) => {
         ref.put(new Blob(['a'])).on(
           TaskEvent.STATE_CHANGED,
           null,
-          err => {
+          (err: FirebaseStorageError) => {
             assert.equal(err.code, 'storage/app-deleted');
             resolve();
           },
@@ -312,6 +315,7 @@ describe('Firebase Storage > Service', () => {
             assert.fail('Upload completed, should have been canceled');
           }
         );
+        // tslint:disable-next-line:no-floating-promises
         service.INTERNAL.delete();
       });
       return toReturn;

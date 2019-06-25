@@ -117,7 +117,7 @@ export class ErrorFactory<
     code: K,
     ...data: K extends keyof ErrorParams ? [ErrorParams[K]] : []
   ): FirebaseError {
-    const customData = data[0] || {};
+    const customData = (data[0] as ErrorData) || {};
     const fullCode = `${this.service}/${code}`;
     const template = this.errors[code];
 

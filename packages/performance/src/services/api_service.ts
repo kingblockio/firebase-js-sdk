@@ -44,7 +44,7 @@ export class Api {
   private PerformanceObserver: typeof PerformanceObserver;
   private windowLocation: Location;
   onFirstInputDelay?: Function;
-  localStorage: Storage;
+  localStorage!: Storage;
   document: Document;
   navigator: Navigator;
 
@@ -57,7 +57,10 @@ export class Api {
     this.windowLocation = window.location;
     this.navigator = window.navigator;
     this.document = window.document;
-    this.localStorage = window.localStorage;
+    if (this.navigator && this.navigator.cookieEnabled) {
+      // If user blocks cookies on the browser, accessing localStorage will throw an exception.
+      this.localStorage = window.localStorage;
+    }
     if (window.perfMetrics && window.perfMetrics.onFirstInputDelay) {
       this.onFirstInputDelay = window.perfMetrics.onFirstInputDelay;
     }
@@ -69,22 +72,30 @@ export class Api {
   }
 
   mark(name: string): void {
-    if (!this.performance || !this.performance.mark) return;
+    if (!this.performance || !this.performance.mark) {
+      return;
+    }
     this.performance.mark(name);
   }
 
   measure(measureName: string, mark1: string, mark2: string): void {
-    if (!this.performance || !this.performance.measure) return;
+    if (!this.performance || !this.performance.measure) {
+      return;
+    }
     this.performance.measure(measureName, mark1, mark2);
   }
 
   getEntriesByType(type: EntryType): PerformanceEntry[] {
-    if (!this.performance || !this.performance.getEntriesByType) return [];
+    if (!this.performance || !this.performance.getEntriesByType) {
+      return [];
+    }
     return this.performance.getEntriesByType(type);
   }
 
   getEntriesByName(name: string): PerformanceEntry[] {
-    if (!this.performance || !this.performance.getEntriesByName) return [];
+    if (!this.performance || !this.performance.getEntriesByName) {
+      return [];
+    }
     return this.performance.getEntriesByName(name);
   }
 
@@ -96,11 +107,20 @@ export class Api {
     );
   }
 
+  requiredApisAvailable(): boolean {
+    if (fetch && Promise && this.navigator && this.navigator.cookieEnabled) {
+      return true;
+    }
+    return false;
+  }
+
   setupObserver(
     entryType: EntryType,
     callback: (entry: PerformanceEntry) => void
   ): void {
-    if (!this.PerformanceObserver) return;
+    if (!this.PerformanceObserver) {
+      return;
+    }
     const observer = new this.PerformanceObserver(list => {
       for (const entry of list.getEntries()) {
         // `entry` is a PerformanceEntry instance.
