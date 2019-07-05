@@ -72,6 +72,7 @@ export const parseRepoInfo = function(
   const parsedUrl = parseURL(dataURL),
     namespace = parsedUrl.subdomain;
 
+    /*
   if (parsedUrl.domain === 'firebase') {
     fatal(
       parsedUrl.host +
@@ -79,8 +80,10 @@ export const parseRepoInfo = function(
         'Please use <YOUR FIREBASE>.firebaseio.com instead'
     );
   }
+  */
 
   // Catch common error of uninitialized namespace value.
+  /*
   if (
     (!namespace || namespace == 'undefined') &&
     parsedUrl.domain !== 'localhost'
@@ -89,6 +92,7 @@ export const parseRepoInfo = function(
       'Cannot parse Firebase url. Please use https://<YOUR FIREBASE>.firebaseio.com'
     );
   }
+  */
 
   if (!parsedUrl.secure) {
     warnIfPageIsSecure();
